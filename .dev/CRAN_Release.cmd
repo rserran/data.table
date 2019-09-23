@@ -35,9 +35,9 @@ grep omp_set_nested ./src/*.c
 grep --exclude="./src/openmp-utils.c" omp_get_max_threads ./src/*
 
 # Ensure all #pragama omp parallel directives include a num_threads() clause
-grep "pragma omp parallel" ./src/*.c
+grep "pragma omp parallel" ./src/*.c | grep -v getDTthreads
 
-# Ensure all .Call's first argument are unquoted.  TODO - change to use INHERITS()
+# Ensure all .Call's first argument are unquoted.
 grep "[.]Call(\"" ./R/*.R
 
 # Ensure no Rprintf in init.c
@@ -66,8 +66,17 @@ grep -P "\t" ./src/*.c
 grep -n "[^A-Za-z0-9]T[^A-Za-z0-9]" ./inst/tests/tests.Rraw
 grep -n "[^A-Za-z0-9]F[^A-Za-z0-9]" ./inst/tests/tests.Rraw
 
+# All integers internally should have L suffix to avoid lots of one-item coercions
+# Where 0 numeric is intended we should perhaps use 0.0 for clarity and make the grep easier
+# 1) tolerance=0 usages in setops.R are valid numeric 0, as are anything in strings
+# 2) leave the rollends default using roll>=0 though; comments in PR #3803
+grep -Enr "^[^#]*(?:\[|==|>|<|>=|<=|,|\(|\+)\s*[-]?[0-9]+[^0-9L:.e]" R | grep -Ev "stop|warning|tolerance"
+
 # No system.time in main tests.Rraw. Timings should be in benchmark.Rraw
 grep -n "system[.]time" ./inst/tests/tests.Rraw
+
+# All % in *.Rd should be escaped otherwise text gets silently chopped
+grep -n "[^\]%" ./man/*.Rd
 
 # seal leak potential where two unprotected API calls are passed to the same
 # function call, usually involving install() or mkChar()
@@ -105,7 +114,7 @@ grep asCharacter *.c | grep -v PROTECT | grep -v SET_VECTOR_ELT | grep -v setAtt
 
 cd ..
 R
-cc(clean=TRUE)  # to compile with -pedandic. Also use very latest gcc (currently gcc-7) as CRAN does
+cc(clean=TRUE)  # to compile with -pedandic -Wall -flto. Also uses very latest gcc (currently gcc-7) as CRAN does
 saf = options()$stringsAsFactors
 options(stringsAsFactors=!saf)    # check tests (that might be run by user) are insensitive to option, #2718
 test.data.table()
@@ -127,15 +136,16 @@ rm ~/.Renviron
 LANGUAGE=de R
 require(data.table)
 test.data.table()
+q("no")
 
 R
 remove.packages("xml2")    # we checked the URLs; don't need to do it again (many minutes)
 require(data.table)
-test.data.table()
-test.data.table(with.other.packages=TRUE)
+test.data.table(script="other.Rraw")
+test.data.table(script="*.Rraw")
 test.data.table(verbose=TRUE)   # since main.R no longer tests verbose mode
 gctorture2(step=50)
-system.time(test.data.table())  # apx 4hrs
+system.time(test.data.table(script="*.Rraw"))  # apx 8h = froll 3h + nafill 1m + main 5h
 
 # Upload to win-builder: release, dev & old-release
 
@@ -159,7 +169,7 @@ cd ~/GitHub/data.table
 R310 CMD INSTALL ./data.table_1.12.3.tar.gz
 R310
 require(data.table)
-test.data.table()
+test.data.table(script="*.Rraw")
 
 
 ############################################
@@ -178,8 +188,9 @@ vi ~/.R/Makevars
 R CMD build .
 R CMD check data.table_1.12.3.tar.gz
 
+
 #####################################################
-#  R-devel with UBSAN, ASAN and strict-barrier on too
+#  R-devel with UBSAN, ASAN, strict-barrier, and noLD
 #####################################################
 
 cd ~/build
@@ -191,7 +202,10 @@ mv R-devel R-devel-strict
 cd R-devel-strict    # important to change directory name before building not after because the path is baked into the build, iiuc
 # Following R-exts#4.3.3
 
-./configure --without-recommended-packages --disable-byte-compiled-packages --disable-openmp --enable-strict-barrier CC="gcc -fsanitize=undefined,address -fno-sanitize=float-divide-by-zero -fno-omit-frame-pointer" CFLAGS="-O0 -g -Wall -pedantic" LIBS="-lpthread"
+./configure --without-recommended-packages --disable-byte-compiled-packages --disable-openmp --enable-strict-barrier --disable-long-double CC="gcc -fsanitize=undefined,address -fno-sanitize=float-divide-by-zero -fno-omit-frame-pointer"
+# CFLAGS an LIBS seem to be ignored now by latest R-devel/gcc, and it works without : CFLAGS="-O0 -g -Wall -pedantic" LIBS="-lpthread"
+# Adding --disable-long-double (see R-exts) in the same configure as ASAN/UBSAN used to fail, but now works. So now noLD is included in this strict build.
+# Other flags used in the past: CC="gcc -std=gnu99" CFLAGS="-O0 -g -Wall -pedantic -ffloat-store -fexcess-precision=standard"
 # For ubsan, disabled openmp otherwise gcc fails in R's distance.c:256 error: ‘*.Lubsan_data0’ not specified in enclosing parallel
 # UBSAN gives direct line number under gcc but not clang it seems. clang-5.0 has been helpful too, though.
 # If use later gcc-8, add F77=gfortran-8
@@ -208,11 +222,13 @@ cd ~/GitHub/data.table
 Rdevel-strict CMD INSTALL data.table_1.12.3.tar.gz
 # Check UBSAN and ASAN flags appear in compiler output above. Rdevel was compiled with them so should be passed through to here
 Rdevel-strict
+isTRUE(.Machine$sizeof.longdouble==0)  # check noLD is being tested
 options(repos = "http://cloud.r-project.org")
-install.packages(c("bit64","xts","nanotime","R.utils"))  # minimum packages needed to not skip any tests in test.data.table()
-install.packages(c("curl","knitr"))                      # for `R CMD check` too (when not strict). Too slow to install when strict
+install.packages(c("bit64","xts","nanotime","R.utils","yaml")) # minimum packages needed to not skip any tests in test.data.table()
+# install.packages(c("curl","knitr"))                          # for `R CMD check` when not strict. Too slow to install when strict
 require(data.table)
-test.data.table()      # 7 mins (vs 1min normally) under UBSAN, ASAN and --strict-barrier
+test.data.table(script="*.Rraw") # 7 mins (vs 1min normally) under UBSAN, ASAN and --strict-barrier
+                                 # without the fix in PR#3515, the --disable-long-double lumped into this build does now work and correctly reproduces the noLD problem
 # If any problems, edit ~/.R/Makevars and activate "CFLAGS=-O0 -g" to trace. Rerun 'Rdevel-strict CMD INSTALL' and rerun tests.
 for (i in 1:10) if (!test.data.table()) break  # try several runs maybe even 100; e.g a few tests generate data with a non-fixed random seed
 # gctorture(TRUE)      # very slow, many days
@@ -269,29 +285,6 @@ vi ~/.R/Makevars  # make the -O3 line active again
 #############################################################################
 There are some things to overcome to achieve compile without USE_RINTERNALS, though.
 
-
-########################################################################
-#  Single precision e.g. CRAN's Solaris-Sparc when it was alive on CRAN.
-#  Not Solaris-x86 which is still on CRAN and easier.
-########################################################################
-#
-# Adding --disable-long-double (see R-exts) in the same configure as ASAN/UBSAN fails.  Hence separately.
-## cd ~/build
-## rm -rf R-devel    # 'make clean' isn't enough: results in link error, oddly.
-## tar xvf R-devel.tar.gz
-## cd R-devel
-## ./configure CC="gcc -std=gnu99" CFLAGS="-O0 -g -Wall -pedantic -ffloat-store -fexcess-precision=standard" --without-recommended-packages --disable-byte-compiled-packages --disable-long-double
-## make
-## Rdevel
-## install.packages("bit64")
-## q("no")
-## Rdevel CMD INSTALL ~/data.table_1.12.3.tar.gz
-## Rdevel
-## .Machine$sizeof.longdouble   # check 0
-## require(data.table)
-## require(bit64)
-## test.data.table()
-## q("no")
 
 ########################################################################
 #  rchk : https://github.com/kalibera/rchk
@@ -410,6 +403,7 @@ sudo apt-get -y install libtesseract-dev libleptonica-dev tesseract-ocr-eng   # 
 sudo apt-get -y install libssl-dev libsasl2-dev
 sudo apt-get -y install biber   # for ctsem
 sudo apt-get -y install libopenblas-dev  # for ivmte (+ local R build with default ./configure to pick up shared openblas)
+sudo apt-get -y install libhiredis-dev  # for redux used by nodbi
 sudo R CMD javareconf
 # ENDIF
 
@@ -464,7 +458,7 @@ NoLD 'additional issue' resolved
 Requests from Luke Tierney and Tomas Kalibera included, noted and thanked in NEWS.
 Best, Matt
 ------------------------------------------------------------
-DO NOT commit or push to GitHub. Leave 4 files (CRAN_Release.cmd, DESCRIPTION, NEWS and init.c) edited and not committed. Include these in a single and final bump commit below.
+DO NOT commit or push to GitHub. Leave 4 files (.dev/CRAN_Release.cmd, DESCRIPTION, NEWS and init.c) edited and not committed. Include these in a single and final bump commit below.
 DO NOT even use a PR. Because PRs build binaries and we don't want any binary versions of even release numbers available from anywhere other than CRAN.
 Leave milestone open with a 'final checks' issue open. Keep updating status there.
 ** If on EC2, shutdown instance. Otherwise get charged for potentially many days/weeks idle time with no alerts **
@@ -474,12 +468,12 @@ CRAN's first check is automatic and usually received within an hour. WAIT FOR TH
 When CRAN's email contains "Pretest results OK pending a manual inspection" (or similar), or if not then it is known why not and ok, then bump dev.
 ###### Bump dev
 0. Close milestone to prevent new issues being tagged with it. The final 'release checks' issue can be left open in a closed milestone.
-1. Check that 'git status' shows 4 files in modified and uncommitted state: DESCRIPTION, NEWS.md, init.c and this CRAN_Release.cmd
+1. Check that 'git status' shows 4 files in modified and uncommitted state: DESCRIPTION, NEWS.md, init.c and this .dev/CRAN_Release.cmd
 2. Bump version in DESCRIPTION to next odd number. Note that DESCRIPTION was in edited and uncommitted state so even number never appears in git.
 3. Add new heading in NEWS for the next dev version. Add "(submitted to CRAN on <today>)" on the released heading.
 4. Bump dllVersion() in init.c
 5. Bump 3 version numbers in Makefile
-6. Search and replace this CRAN_Release.cmd to update 1.12.1 to 1.12.3, and 1.12.0 to 1.12.2 (e.g. in step 8 and 9 below)
+6. Search and replace this .dev/CRAN_Release.cmd to update 1.12.1 to 1.12.3, and 1.12.0 to 1.12.2 (e.g. in step 8 and 9 below)
 7. Another final gd to view all diffs using meld. (I have `alias gd='git difftool &> /dev/null'` and difftool meld: http://meldmerge.org/)
 8. Push to master with this consistent commit message: "1.12.2 on CRAN. Bump to 1.12.3"
 9. Take sha from step 8 and run `git tag 1.12.2 34796cd1524828df9bf13a174265cb68a09fcd77` then `git push origin 1.12.2` (not `git push --tags` according to https://stackoverflow.com/a/5195913/403310)

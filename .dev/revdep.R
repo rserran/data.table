@@ -1,6 +1,6 @@
 # Run by package maintainer via these entries in ~/.bash_aliases :
-#   alias revdepr='cd ~/build/revdeplib/ && R_LIBS_SITE=none R_LIBS=~/build/revdeplib/ _R_CHECK_FORCE_SUGGESTS_=false R_PROFILE_USER=~/GitHub/data.table/revdep.R R'
-#   alias revdepsh='cd ~/build/revdeplib/ && export R_LIBS_SITE=none && export R_LIBS=~/build/revdeplib/ && export _R_CHECK_FORCE_SUGGESTS_=false'
+#   alias revdepr='cd ~/build/revdeplib/ && R_LIBS_SITE=none R_LIBS=~/build/revdeplib/ _R_CHECK_FORCE_SUGGESTS_=false R_PROFILE_USER=~/GitHub/data.table/.dev/revdep.R R'
+#   alias revdepsh='cd ~/build/revdeplib/ && export TZ=UTC && export R_LIBS_SITE=none && export R_LIBS=~/build/revdeplib/ && export _R_CHECK_FORCE_SUGGESTS_=false'
 # revdep = reverse first-order dependency; i.e. the CRAN and Bioconductor packages which directly use data.table (765 at the time of writing)
 
 # Check that env variables have been set correctly:
@@ -33,7 +33,7 @@ BiocManager::install(ask=FALSE, version="devel")
 BiocManager::valid()
 
 avail = available.packages(repos=BiocManager::repositories())  # includes CRAN at the end from getOption("repos"). And ensure latest Bioc version is in repo path here.
-deps = tools::package_dependencies("data.table", db=avail, which="most", reverse=TRUE, recursive=FALSE)[[1]]
+deps = tools::package_dependencies("data.table", db=avail, which="all", reverse=TRUE, recursive=FALSE)[[1]]
 exclude = c("TCGAbiolinks")  # too long (>30mins): https://github.com/BioinformaticsFMRP/TCGAbiolinks/issues/240
 deps = deps[-match(exclude, deps)]
 table(avail[deps,"Repository"])
@@ -189,14 +189,28 @@ inst = function() {
   system(paste("R CMD INSTALL", last))
 }
 
-log = function(x=c(.fail.cran, .fail.bioc), fnam="~/fail.log") {
+log = function(bioc=FALSE, fnam="~/fail.log") {
+  x = c(.fail.cran, if (bioc) .fail.bioc)
   cat("Writing 00check.log for",length(x),"packages to",fnam,":\n")
   cat(paste(x,collapse=" "), "\n")
+  require(BiocManager)  # to ensure Bioc version is included in attached packages sessionInfo. It includes the minor version this way; e.g. 1.30.4
   cat(capture.output(sessionInfo()), "\n", file=fnam, sep="\n")
-  cat(capture.output(BiocManager::install(), type="message"), "\n", file=fnam, sep="\n", append=TRUE)
   for (i in x) {
     system(paste0("ls | grep '",i,".*tar.gz' >> ",fnam))
-    system(paste0("grep -H . ./",i,".Rcheck/00check.log >> ",fnam))
+    if (i %in% .fail.bioc) {
+      # for Bioconductor only, now include the git commit and date. Although Bioc dev check status online may show OK :
+      #   https://bioconductor.org/checkResults/devel/bioc-LATEST/
+      # the Bioc package maintainer has to remember to bump the version number otherwise Bioc will not propogate it,
+      # and BiocManager::install(version="devel") will not update to the latest version, even though the Bioc dev
+      # status online does update. For packages which fail/warn locally but state OK on Bioc check page, compare the
+      # output here to the commit hash and date displayed by Bioc-dev check results. If there's a mismatch, contact
+      # the maintainer and ask them to bump their version number.
+      M = as.matrix(unclass(packageDescription(i)))
+      mode(M) = "character"
+      out = capture.output(print(M[grep("commit|Date|Packaged",rownames(M),ignore.case=TRUE),,drop=FALSE]))
+      cat(out[-1], sep="\n", file=fnam, append=TRUE)
+    }
+    system(paste0("grep -H . ./",i,".Rcheck/00check.log >> ",fnam))  # the fail messages
     cat("\n\n", file=fnam, append=TRUE)
   }
 }
