@@ -2,7 +2,16 @@
 
 **Benchmarks are regularly upated: [here](https://h2oai.github.io/db-benchmark/)**
 
-# data.table v1.12.3  (in development)
+# data.table [v1.12.5](https://github.com/Rdatatable/data.table/milestone/15)  (in development)
+
+## NEW FEATURES
+
+## BUG FIXES
+
+## NOTES
+
+
+# data.table [v1.12.4](https://github.com/Rdatatable/data.table/milestone/16?closed=1)  (03 Oct 2019)
 
 ## NEW FEATURES
 
@@ -43,7 +52,7 @@
 
     * Now supports type `complex`, [#3690](https://github.com/Rdatatable/data.table/issues/3690).
 
-    * Gains `scipen` [#2020](https://github.com/Rdatatable/data.table/issues/2020), the number 1 most-requested feature [#3189](https://github.com/Rdatatable/data.table/issues/3189). The default is `getOption("scipen")` so that `fwrite` will now respect this R option in the same way as `base::write.csv` and `base::format`, as expected. The parameter and option name have been kept the same as base R's `scipen` for consistency and to aid online search. It stands for 'scientific penalty'; the number of characters to add to the width within which non-scientific number format is used if it will fit. A high penalty essentially turns off scientific format.
+    * Gains `scipen` [#2020](https://github.com/Rdatatable/data.table/issues/2020), the number 1 most-requested feature [#3189](https://github.com/Rdatatable/data.table/issues/3189). The default is `getOption("scipen")` so that `fwrite` will now respect R's option in the same way as `base::write.csv` and `base::format`, as expected. The parameter and option name have been kept the same as base R's `scipen` for consistency and to aid online search. It stands for 'scientific penalty'; i.e., the number of characters to add to the width within which non-scientific number format is used if it will fit. A high penalty essentially turns off scientific format. We believe that common practice is to use a value of 999, however, if you do use 999, because your data _might_ include very long numbers such as `10^300`, `fwrite` needs to account for the worst case field width in its buffer allocation per thread. This may impact space or time. If you experience slowdowns or unacceptable memory usage, please pass `verbose=TRUE` to `fwrite`, inspect the output, and report the issue. A workaround, until we can determine the best strategy, may be to pass a smaller value to `scipen`, such as 50. We have observed that `fwrite(DT, scipen=50)` appears to write `10^50` accurately, unlike base R. However, this may be a happy accident and not apply generally. Further work may be needed in this area.
 
     ```R
     DT = data.table(a=0.0001, b=1000000)
@@ -56,6 +65,15 @@
     fwrite(DT,scipen=2)
     # a,b
     # 0.0001,1000000
+
+    10^50
+    # [1] 1e+50
+    options(scipen=50)
+    10^50
+    # [1] 100000000000000007629769841091887003294964970946560
+    fwrite(data.table(A=10^50))
+    # A
+    # 100000000000000000000000000000000000000000000000000
     ```
 
 4. Assigning to one item of a list column no longer requires the RHS to be wrapped with `list` or `.()`, [#950](https://github.com/Rdatatable/data.table/issues/950).
@@ -192,24 +210,24 @@
     ```R
     set.seed(108)
     x = rnorm(1e6); n = 1e3
-    rollfun = function(x, n, FUN) {
-      ans = rep(NA_real_, nx<-length(x))
+    base_rollapply = function(x, n, FUN) {
+      nx = length(x)
+      ans = rep(NA_real_, nx)
       for (i in n:nx) ans[i] = FUN(x[(i-n+1):i])
       ans
     }
-    system.time(ans1<-rollfun(x, n, mean))
-    system.time(ans2<-zoo::rollapplyr(x, n, function(x) mean(x), fill=NA))
-    system.time(ans3<-zoo::rollmeanr(x, n, fill=NA))
-    system.time(ans4<-frollapply(x, n, mean))
-    system.time(ans5<-frollmean(x, n))
-    sapply(list(ans2,ans3,ans4,ans5), all.equal, ans1)
+    system.time(base_rollapply(x, n, mean))
+    system.time(zoo::rollapplyr(x, n, function(x) mean(x), fill=NA))
+    system.time(zoo::rollmeanr(x, n, fill=NA))
+    system.time(frollapply(x, n, mean))
+    system.time(frollmean(x, n))
 
     ### fun             mean     sum  median
-    # base rollfun     8.815   5.151  60.175
+    # base_rollapply   8.815   5.151  60.175
     # zoo::rollapply  34.373  27.837  88.552
-    # zoo::roll[fun]   0.215   0.185      NA
+    # zoo::roll[fun]   0.215   0.185      NA   ## median not fully supported
     # frollapply       5.404   1.419  56.475
-    # froll[fun]       0.003   0.002      NA
+    # froll[fun]       0.003   0.002      NA   ## median not yet supported
     ```
 
 28. `setnames()` now accepts functions in `old=` and `new=`, [#3703](https://github.com/Rdatatable/data.table/issues/3703). Thanks @smingerson for the feature request and @shrektan for the PR.
@@ -219,10 +237,12 @@
     setnames(DT, toupper)
     names(DT)
     # [1] "A" "B" "C"
-    setnames(DT, 2:3, tolower)
+    setnames(DT, c(1,3), tolower)
     names(DT)
-    # [1] "A" "b" "c"
+    # [1] "a" "B" "c"
     ```
+
+29. `:=` and `set()` now use zero-copy type coercion. Accordingly, `DT[..., integerColumn:=0]` and `set(DT,i,j,0)` no longer warn about the `0` ('numeric') needing to be `0L` ('integer') because there is no longer any time or space used for this coercion. The old long warning was off-putting to new users ("what and why L?"), whereas advanced users appreciated the old warning so they could avoid the coercion. Although the time and space for one coercion in a single call is unmeasurably small, when placed in a loop the small overhead of any allocation on R's heap could start to become noticeable (more so for `set()` whose purpose is low-overhead looping). Further, when assigning a value across columns of varying types, it could be inconvenient to supply the correct type for every column. Hence, zero-copy coercion was introduced to satisfy all these requirements. A warning is still issued, as before, when fractional data is discarded; e.g. when 3.14 is assigned to an integer column. Zero-copy coercion applies to length>1 vectors as well as length-1 vectors.
 
 ## BUG FIXES
 
@@ -325,6 +345,12 @@
 
 43. `:=` could change a `data.table` creation statement in the body of the function calling it, or a variable in calling scope, [#3890](https://github.com/Rdatatable/data.table/issues/3890). Many thanks to @kirillmayantsev for the detailed reports.
 
+44. Grouping could create a `malformed factor` and/or segfault when the factors returned by each group did not have identical levels, [#2199](https://github.com/Rdatatable/data.table/issues/2199) and [#2522](https://github.com/Rdatatable/data.table/issues/2522). Thanks to Václav Hausenblas, @franknarf1, @ben519, and @Henrik-P for reporting.
+
+45. `rbindlist` (and printing a `data.table` with over 100 rows because that uses `rbindlist(head, tail)`) could error with `malformed factor` for unordered factor columns containing a used `NA_character_` level, [#3915](https://github.com/Rdatatable/data.table/issues/3915). This is an unusual input for unordered factors because NA_integer_ is recommended by default in R. Thanks to @sindribaldur for reporting.
+
+46. Adding a `list` column containing an item of type `list` to a one row `data.table` could fail, [#3626](https://github.com/Rdatatable/data.table/issues/3626). Thanks to Jakob Richter for reporting.
+
 ## NOTES
 
 1. `rbindlist`'s `use.names="check"` now emits its message for automatic column names (`"V[0-9]+"`) too, [#3484](https://github.com/Rdatatable/data.table/pull/3484). See news item 5 of v1.12.2 below.
@@ -378,6 +404,19 @@
 22. Optimized `mean` of `integer` columns no longer warns about a coercion to numeric, [#986](https://github.com/Rdatatable/data.table/issues/986). Thanks @dgrtwo for his [YouTube tutorial at 3:01](https://youtu.be/AmE4LXPQErM?t=175) where the warning occurs.
 
 23. Using `first` and `last` function on `POSIXct` object no longer loads `xts` namespace, [#3857](https://github.com/Rdatatable/data.table/issues/3857). `first` on empty `data.table` returns empty `data.table` now [#3858](https://github.com/Rdatatable/data.table/issues/3858).
+
+24. Added some clarifying details about what happens when a shell command is used in `fread`, [#3877](https://github.com/Rdatatable/data.table/issues/3877). Thanks Brian for the StackOverflow question which highlighted the lack of explanation here.
+
+25. We continue to encourage packages to `Import` rather than `Depend` on `data.table`, [#3076](https://github.com/Rdatatable/data.table/issues/3076). To prevent the growth rate in new packages using `Depend`, we have requested that CRAN apply a small patch we provided to prevent new submissions using `Depend`. If this is accepted, the error under `--as-cran` will be as follows. The existing 73 packages using `Depend` will continue to pass OK until they next update, at which point they will be required to change from `Depend` to `Import`.
+
+    ```
+    R CMD check <pkg> --as-cran
+    ...
+    * checking package dependencies ... ERROR
+
+    data.table should be in Imports not Depends. Please contact its
+    maintainer for more information.
+    ```
 
 
 # data.table [v1.12.2](https://github.com/Rdatatable/data.table/milestone/14?closed=1)  (07 Apr 2019)

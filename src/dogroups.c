@@ -7,7 +7,7 @@ SEXP dogroups(SEXP dt, SEXP dtcols, SEXP groups, SEXP grpcols, SEXP jiscols, SEX
 {
   R_len_t rownum, ngrp, nrowgroups, njval=0, ngrpcols, ansloc=0, maxn, estn=-1, thisansloc, grpn, thislen, igrp, origIlen=0, origSDnrow=0;
   int nprotect=0;
-  SEXP ans=NULL, jval, thiscol, BY, N, I, GRP, iSD, xSD, rownames, s, RHS, target, source, tmp;
+  SEXP ans=NULL, jval, thiscol, BY, N, I, GRP, iSD, xSD, rownames, s, RHS, target, source;
   Rboolean wasvector, firstalloc=FALSE, NullWarnDone=FALSE;
   clock_t tstart=0, tblock[10]={0}; int nblock[10]={0};
 
@@ -289,8 +289,6 @@ SEXP dogroups(SEXP dt, SEXP dtcols, SEXP groups, SEXP grpcols, SEXP jiscols, SEX
         RHS = VECTOR_ELT(jval,j%LENGTH(jval));
         if (isNull(RHS))
           error("RHS is NULL when grouping :=. Makes no sense to delete a column by group. Perhaps use an empty vector instead.");
-        if (TYPEOF(target)!=TYPEOF(RHS) && !isNull(target))
-          error("Type of RHS ('%s') must match LHS ('%s'). To check and coerce would impact performance too much for the fastest cases. Either change the type of the target column, or coerce the RHS of := yourself (e.g. by using 1L instead of 1)", type2char(TYPEOF(RHS)), type2char(TYPEOF(target)));
         int vlen = length(RHS);
         if (vlen>1 && vlen!=grpn) {
           SEXP colname = isNull(target) ? STRING_ELT(newnames, INTEGER(lhs)[j]-origncol-1) : STRING_ELT(dtnames,INTEGER(lhs)[j]-1);
@@ -304,28 +302,23 @@ SEXP dogroups(SEXP dt, SEXP dtcols, SEXP groups, SEXP grpcols, SEXP jiscols, SEX
         if (isNull(target)) {
           // first time adding to new column
           if (TRUELENGTH(dt) < INTEGER(lhs)[j]) error("Internal error: Trying to add new column by reference but tl is full; setalloccol should have run first at R level before getting to this point in dogroups"); // # nocov
-          tmp = PROTECT(allocNAVectorLike(RHS, LENGTH(VECTOR_ELT(dt,0))));
-          // increment length only if the allocation passes, #1676
+          target = PROTECT(allocNAVectorLike(RHS, LENGTH(VECTOR_ELT(dt,0))));
+          // Even if we could know reliably to switch from allocNAVectorLike to allocVector for slight speedup, user code could still
+          // contain a switched halt, and in that case we'd want the groups not yet done to have NA rather than 0 or uninitialized.
+          // Increment length only if the allocation passes, #1676. But before SET_VECTOR_ELT otherwise attempt-to-set-index-n/n R error
           SETLENGTH(dtnames, LENGTH(dtnames)+1);
           SETLENGTH(dt, LENGTH(dt)+1);
-          SET_VECTOR_ELT(dt, INTEGER(lhs)[j]-1, tmp);
+          SET_VECTOR_ELT(dt, INTEGER(lhs)[j]-1, target);
           UNPROTECT(1);
-          // Even if we could know reliably to switch from allocNAVectorLike to allocVector for slight speedup, user code could still contain a switched halt, and in that case we'd want the groups not yet done to have NA rather than uninitialized or 0.
-          // dtnames = getAttrib(dt, R_NamesSymbol); // commented this here and added it on the beginning to fix #4990
           SET_STRING_ELT(dtnames, INTEGER(lhs)[j]-1, STRING_ELT(newnames, INTEGER(lhs)[j]-origncol-1));
-          target = VECTOR_ELT(dt,INTEGER(lhs)[j]-1);
+          copyMostAttrib(RHS, target); // attributes of first group dominate; e.g. initial factor levels come from first group
         }
-        memrecycle(target, order, INTEGER(starts)[i]-1, grpn, RHS);   // length mismatch checked above for all jval columns before starting to add any new columns
-        copyMostAttrib(RHS, target);  // not names, otherwise test 778 would fail.
-        /* OLD FIX: commented now. The fix below resulted in segfault on factor columns because I didn't set the "levels"
-           Instead of fixing that, I just removed setting class if it's factor. Not appropriate fix.
-           Correct fix of copying all attributes (except names) added above. Now, everything should be alright.
-           Test 1144 (#5104) will provide the right output now. Modified accordingly.
-        OUTDATED: if (!isFactor(RHS)) setAttrib(target, R_ClassSymbol, getAttrib(RHS, R_ClassSymbol));
-        OUTDATED: // added !isFactor(RHS) to fix #5104 (side-effect of fixing #2531)
-           See also #155 and #36 */
+        const char *warn = memrecycle(target, order, INTEGER(starts)[i]-1, grpn, RHS, 0, "");
+        // can't error here because length mismatch already checked for all jval columns before starting to add any new columns
+        if (warn)
+          warning("Group %d column '%s': %s", i+1, CHAR(STRING_ELT(dtnames,INTEGER(lhs)[j]-1)), warn);
       }
-      UNPROTECT(1);
+      UNPROTECT(1); // jval
       continue;
     }
     maxn = 0;
@@ -402,8 +395,8 @@ SEXP dogroups(SEXP dt, SEXP dtcols, SEXP groups, SEXP grpcols, SEXP jiscols, SEX
       if (tsize==4) {
         int *td = INTEGER(target);
         int *sd = INTEGER(source);
-        for (int r=0; r<maxn; ++r) td[ansloc+r] = sd[igrp];
-      } else if (tsize==8) {
+        for (int r=0; r<maxn; ++r) td[ansloc+r] = sd[igrp];  // TODO: replace this section with memrecycle; igrp source offset needs adding
+      } else if (tsize==8) {                                 //       would resolve past comment too: 'shouldn't need SET_* to age objects here since groups. revisit'
         double *td = REAL(target);
         double *sd = REAL(source);
         for (int r=0; r<maxn; ++r) td[ansloc+r] = sd[igrp];
@@ -413,7 +406,6 @@ SEXP dogroups(SEXP dt, SEXP dtcols, SEXP groups, SEXP grpcols, SEXP jiscols, SEX
         Rcomplex *sd = COMPLEX(source);
         for (int r=0; r<maxn; ++r) td[ansloc+r] = sd[igrp];
       }
-      // Shouldn't need SET_* to age objects here since groups, TO DO revisit.
     }
     for (int j=0; j<njval; ++j) {
       thisansloc = ansloc;
@@ -427,29 +419,7 @@ SEXP dogroups(SEXP dt, SEXP dtcols, SEXP groups, SEXP grpcols, SEXP jiscols, SEX
           warning("Item %d of j's result for group %d is zero length. This will be filled with %d NAs to match the longest column in this result. Later groups may have a similar problem but only the first is reported to save filling the warning buffer.", j+1, i+1, maxn);
           NullWarnDone = TRUE;
         }
-        switch (TYPEOF(target)) {     // rarely called so no need to optimize this switch
-        case LGLSXP :
-        case INTSXP : {
-          int *td = INTEGER(target)+thisansloc;
-          for (int r=0; r<maxn; ++r) td[r] = NA_INTEGER;
-        } break;
-        case REALSXP : {
-          double *td = REAL(target)+thisansloc;
-          for (int r=0; r<maxn; ++r) td[r] = NA_REAL;
-        } break;
-        case CPLXSXP : {
-          Rcomplex *td = COMPLEX(target) + thisansloc;
-          for (int r=0; r<maxn; ++r) td[r] = NA_CPLX;
-        } break;
-        case STRSXP :
-          for (int r=0; r<maxn; ++r) SET_STRING_ELT(target,thisansloc+r,NA_STRING);
-          break;
-        case VECSXP :
-          for (int r=0; r<maxn; ++r) SET_VECTOR_ELT(target,thisansloc+r,R_NilValue);
-          break;
-        default:
-          error("Internal error. Type of column should have been checked by now"); // #nocov
-        }
+        writeNA(target, thisansloc, maxn);
       } else {
         // thislen>0
         if (TYPEOF(source) != TYPEOF(target))
@@ -457,7 +427,7 @@ SEXP dogroups(SEXP dt, SEXP dtcols, SEXP groups, SEXP grpcols, SEXP jiscols, SEX
         if (thislen>1 && thislen!=maxn && grpn>0) {  // grpn>0 for grouping empty tables; test 1986
           error("Supplied %d items for column %d of group %d which has %d rows. The RHS length must either be 1 (single values are ok) or match the LHS length exactly. If you wish to 'recycle' the RHS please use rep() explicitly to make this intent clear to readers of your code.", thislen, j+1, i+1, maxn);
         }
-        memrecycle(target, R_NilValue, thisansloc, maxn, source);
+        memrecycle(target, R_NilValue, thisansloc, maxn, source, 0, "");
       }
     }
     ansloc += maxn;
