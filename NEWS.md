@@ -2,11 +2,17 @@
 
 **Benchmarks are regularly upated: [here](https://h2oai.github.io/db-benchmark/)**
 
-# data.table [v1.12.5](https://github.com/Rdatatable/data.table/milestone/15)  (in development)
+# data.table [v1.12.5](https://github.com/Rdatatable/data.table/milestone/18)  (in development)
 
 ## NEW FEATURES
 
 ## BUG FIXES
+
+1. `shift()` on a `nanotime` with the default `fill=NA` now fills a `nanotime` missing value correctly, [#3945](https://github.com/Rdatatable/data.table/issues/3945). Thanks to @mschubmehl for reporting and fixing in PR [#3942](https://github.com/Rdatatable/data.table/pull/3942).
+
+2. Compilation failed on CRAN's MacOS due to an older version of `zlib.h/zconf.h` which did not have `z_const` defined, [#3939](https://github.com/Rdatatable/data.table/issues/3939). Other open-source projects unrelated to R have experienced this problem on MacOS too. We have followed the common practice of removing `z_const` to support the older `zlib` versions, and data.table's release procedures have gained a `grep` to ensure `z_const` isn't used again by accident in future. The library `zlib` is used for `fwrite`'s new feature of multithreaded compression on-the-fly; see item 3 of 1.12.4 below.
+
+3. An error, again in `fwrite`'s compression, but only observed so far on Solaris 32bit has been fixed, [#3931](https://github.com/Rdatatable/data.table/issues/3931): `Error -2: one or more threads failed to allocate buffers or there was a compression error.` In case it happens again, this area has been made more robust and the error more detailed.
 
 ## NOTES
 
