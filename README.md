@@ -2,7 +2,7 @@
 # data.table <a href="http://r-datatable.com"><img src="https://raw.githubusercontent.com/Rdatatable/data.table/master/.graphics/logo.png" align="right" height="140" /></a>
 
 <!-- badges: start -->
-[![CRAN status](https://www.r-pkg.org/badges/version/data.table)](https://cran.r-project.org/web/checks/check_results_data.table.html)
+[![CRAN status](https://cranchecks.info/badges/flavor/release/data.table)](https://cran.r-project.org/web/checks/check_results_data.table.html)
 [![Travis build status](https://travis-ci.org/Rdatatable/data.table.svg?branch=master)](https://travis-ci.org/Rdatatable/data.table)
 [![AppVeyor build status](https://ci.appveyor.com/api/projects/status/kayjdh5qtgymhoxr/branch/master?svg=true)](https://ci.appveyor.com/project/Rdatatable/data-table)
 [![Codecov test coverage](https://codecov.io/github/Rdatatable/data.table/coverage.svg?branch=master)](https://codecov.io/github/Rdatatable/data.table?branch=master)
@@ -15,6 +15,14 @@
 <!-- badges: end -->
 
 `data.table` provides a high-performance version of [base R](https://www.r-project.org/about.html)'s `data.frame` with syntax and feature enhancements for ease of use, convenience and programming speed.
+
+---
+
+**26 December 2019<br>
+Efficiency in data processing: data.table basics - Jan Gorecki, [Mumbai R@IISA 2019](https://r-iisa2019.rbind.io/)**
+<br>
+
+---
 
 ## Why `data.table`?
 
@@ -40,18 +48,10 @@
 
 ## Installation
 
-``` r
+```r
 install.packages("data.table")
-```
 
-### Development version
-
-```r
-install.packages("data.table", repos="https://Rdatatable.gitlab.io/data.table")
-```
-
-or update only if newer revision is available
-```r
+# latest development version:
 data.table::update.dev.pkg()
 ```
 
@@ -61,9 +61,9 @@ See [the Installation wiki](https://github.com/Rdatatable/data.table/wiki/Instal
 
 Use `data.table` subset `[` operator the same way you would use `data.frame` one, but...
 
-* no need to prefix columns with `DT$`
-* any valid expression is allowed in `j` argument
-* extra argument `by` to compute `j` by group
+* no need to prefix each column with `DT$` (like `subset()` and `with()` but built-in)
+* any R expression using any package is allowed in `j` argument, not just list of columns
+* extra argument `by` to compute `j` expression by group
 
 ```r
 library(data.table)
@@ -82,6 +82,7 @@ DT[Petal.Width > 1.0, mean(Petal.Length), by = Species]
 
 * [Introduction to data.table](https://cloud.r-project.org/web/packages/data.table/vignettes/datatable-intro.html) vignette
 * [Getting started](https://github.com/Rdatatable/data.table/wiki/Getting-started) wiki page
+* [Examples](https://rdatatable.gitlab.io/data.table/reference/data.table.html#examples) produced by `example(data.table)`
 
 ### Cheatsheets
 
