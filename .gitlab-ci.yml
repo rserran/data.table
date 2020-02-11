@@ -27,7 +27,7 @@ mirror-packages: # download all recursive dependencies of data.table suggests an
     - bus/$CI_BUILD_NAME/cran
   variables:
     R_BIN_VERSION: "3.6"
-    R_DEVEL_BIN_VERSION: "3.7" ## CRAN does not yet use 4.0 for R-devel
+    R_DEVEL_BIN_VERSION: "4.0"
   script:
     - echo 'source(".ci/ci.R")' >> .Rprofile
     - mkdir -p bus/$CI_BUILD_NAME/cran/src/contrib
@@ -91,13 +91,14 @@ build: # build data.table sources as tar.gz archive
   tags:
     - macosx
 
-test-rel-lin: #  most comprehensive tests, force all suggests, also integration tests, using gcc -O3 -flto
+test-rel-lin: #  most comprehensive tests, force all suggests, also integration tests, using gcc -O3 -flto -fno-common -Wunused-result
   <<: *test-lin
   image: registry.gitlab.com/jangorecki/dockerfiles/r-builder
   variables: # unlike CRAN
     _R_CHECK_CRAN_INCOMING_: "FALSE"
     _R_CHECK_CRAN_INCOMING_REMOTE_: "FALSE"
     _R_CHECK_FORCE_SUGGESTS_: "TRUE"
+    _R_CHECK_TESTS_NLINES_: "0"
     OPENBLAS_MAIN_FREE: "1"
     TEST_DATA_TABLE_WITH_OTHER_PACKAGES: "TRUE"
   script:
@@ -106,8 +107,8 @@ test-rel-lin: #  most comprehensive tests, force all suggests, also integration 
     - rm -r bus
     - *move-src
     - mkdir -p ~/.R
-    - echo 'CFLAGS=-g -O3 -flto -fopenmp -Wall -pedantic -fstack-protector-strong -D_FORTIFY_SOURCE=2' > ~/.R/Makevars
-    - echo 'CXXFLAGS=-g -O3 -flto -fopenmp -Wall -pedantic -fstack-protector-strong -D_FORTIFY_SOURCE=2' >> ~/.R/Makevars
+    - echo 'CFLAGS=-g -O3 -flto -fno-common -Wunused-result -fopenmp -Wall -pedantic -fstack-protector-strong -D_FORTIFY_SOURCE=2' > ~/.R/Makevars
+    - echo 'CXXFLAGS=-g -O3 -flto -fno-common -Wunused-result -fopenmp -Wall -pedantic -fstack-protector-strong -D_FORTIFY_SOURCE=2' >> ~/.R/Makevars
     - cd bus/$CI_BUILD_NAME
     - R CMD check $(ls -1t data.table_*.tar.gz | head -n 1)
     - *cleanup-src
@@ -149,7 +150,7 @@ test-rel-cran-lin: # currently released R on Linux
     - R CMD check --as-cran $(ls -1t data.table_*.tar.gz | head -n 1)
     - *cleanup-src
     - >-
-        Rscript -e 'l<-readLines("data.table.Rcheck/00check.log"); if (!identical(l[length(l)], "Status: OK")) stop("Last line of ", shQuote("00check.log"), " is not ", shQuote("Status: OK"), " but ", shQuote(toString(l[length(l)]))) else q("no")'
+        Rscript -e 'l<-readLines("data.table.Rcheck/00check.log"); if (!identical(l[length(l)], "Status: 1 NOTE")) stop("Last line of ", shQuote("00check.log"), " is not ", shQuote("Status: 1 NOTE"), "(size of tarball) but ", shQuote(toString(l[length(l)]))) else q("no")'
 
 test-dev-cran-lin: # R-devel on Linux, --enable-strict-barrier --disable-long-double
   <<: *test-lin
@@ -202,7 +203,7 @@ test-rel-win: # windows test and build binaries
 test-dev-win: # R-devel on windows
   <<: *test-win
   variables:
-    R_BIN_VERSION: "3.7"
+    R_BIN_VERSION: "4.0"
     R_DIR: "R-devel"
     TEST_DATA_TABLE_MEMTEST: "FALSE" # disabled as described in #3147
   allow_failure: false
@@ -254,7 +255,7 @@ integration: # merging all artifacts to produce single R repository and summarie
   #- test-rel-osx
   variables:
     R_BIN_VERSION: "3.6"
-    R_DEVEL_BIN_VERSION: "3.7"
+    R_DEVEL_BIN_VERSION: "4.0"
   script:
     # pkgdown installs pkgs from "." so run at start to have clean root dir
     - apt-get update -qq && apt-get install -y libxml2-dev
