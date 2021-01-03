@@ -85,7 +85,11 @@ EOF
 
 if [ "$R_NO_OPENMP" = "1" ]; then
   # Compilation failed -- try forcing -fopenmp instead.
-  "${CC}" "${CFLAGS}" -fopenmp test-omp.c || R_NO_OPENMP=1
+  # TODO: doesn't R_NO_OPENMP need to be set to 0 before next line?
+  ${CC} ${CFLAGS} -fopenmp test-omp.c || R_NO_OPENMP=1
+  # TODO: and then nothing seems to be done with this outcome
+else
+  echo "R CMD SHLIB supports OpenMP without any extra hint"
 fi
 
 # Clean up.
@@ -100,8 +104,10 @@ if [ "$R_NO_OPENMP" = "1" ]; then
   echo "*** Continuing installation without OpenMP support..."
   sed -e "s|@openmp_cflags@||" src/Makevars.in > src/Makevars
 else
-  echo "OpenMP supported"
   sed -e "s|@openmp_cflags@|\$(SHLIB_OPENMP_CFLAGS)|" src/Makevars.in > src/Makevars
 fi
+# retain user supplied PKG_ env variables, #4664. See comments in Makevars.in too.
+sed -e "s|@PKG_CFLAGS@|$PKG_CFLAGS|" src/Makevars > src/Makevars.tmp && mv src/Makevars.tmp src/Makevars
+sed -e "s|@PKG_LIBS@|$PKG_LIBS|" src/Makevars > src/Makevars.tmp && mv src/Makevars.tmp src/Makevars
 
 exit 0
