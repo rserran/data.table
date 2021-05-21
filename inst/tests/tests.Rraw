@@ -5929,7 +5929,11 @@ test(1388, as.character(x), c("00:00:01", "-00:00:01", "-01:01:40"))
 # Fix for #880. Another eval(parse(.)) issue.
 DT <- as.data.table(iris)
 DT[, foo := "Species"]
-test(1389, copy(DT)[,bar := eval(parse(text=foo[1]), envir=.SD)], copy(DT)[, bar := Species])
+test(1389.1, copy(DT)[,bar := eval(parse(text=foo[1]), envir=.SD)], copy(DT)[, bar := Species])
+# another test from #1181 for completeness
+DT1 = data.table(a = 1, key = 'a')
+DT2 = data.table(c = 1, fn = list(quote(5*a)), key = 'c')
+test(1389.2, DT1[, n:=eval(DT2[a]$fn[[1]], .SD)], data.table(a=1, n=5, key="a"))
 
 # Fix for foverlaps() floating point interval (double) types. Should increment them by machine tolerance, not by 1L
 DT1 = data.table(start=c(0.88), end=c(0.88))
@@ -10342,7 +10346,7 @@ if (.Platform$OS.type=="unix") {
   cat("a,b\n4,2", file=f<-tempfile())
   cmd <- sprintf("cat %s", f)
   options(datatable.fread.input.cmd.message = TRUE)
-  test(1703.01, fread(cmd), ans<-data.table(a=4L, b=2L), message="Please use fread.cmd=.*security concern.*Please read item 5 in the NEWS file for v1.11.6")
+  test(1703.01, fread(cmd), ans<-data.table(a=4L, b=2L), message="security concern.*Please read item 5 in the NEWS file for v1.11.6")
   options(datatable.fread.input.cmd.message = NULL)  # when option is missing as it is by default, then TRUE
   test(1703.02, fread(cmd), ans, message="security concern")
   options(datatable.fread.input.cmd.message = FALSE)
@@ -17655,3 +17659,6 @@ if (test_bit64) {
 }
 test(2190.9, DT[1:2, a:=call('sum', 1)], error="type 'language' cannot be coerced to 'list'")
 
+# adding test for (since fixed) 'could not find function "."' when verbose=TRUE, #3196
+DT = data.table(i1 = c(234L, 250L, 169L, 234L, 147L, 96L, 96L, 369L, 147L, 96L), i4 = c(79L, 113L, 270L, -121L, 113L, 113L, -121L, 179L, -228L, 113L), v = 0)
+test(2191, DT[1:5, sum(v), by=.(i5 = 1:5 %% 2L), verbose=TRUE], data.table(i5=1:0, V1=c(0,0)), output="gforce")

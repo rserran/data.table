@@ -906,7 +906,7 @@ replace_dot_alias = function(e) {
             # if user doesn't like this inferred name, user has to use by=list() to name the column
           }
           # Fix for #1334
-          if (any(duplicated(bynames))) {
+          if (anyDuplicated(bynames)) {
             bynames = make.unique(bynames)
           }
         }
@@ -1116,7 +1116,7 @@ replace_dot_alias = function(e) {
           lhs = names_x[m]
         } else
           stop("LHS of := isn't column names ('character') or positions ('integer' or 'numeric')")
-        if (all(!is.na(m))) {
+        if (!anyNA(m)) {
           # updates by reference to existing columns
           cols = as.integer(m)
           newnames=NULL
