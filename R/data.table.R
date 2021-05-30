@@ -405,14 +405,17 @@ replace_dot_alias = function(e) {
     } else {
       # isub is a single symbol name such as B in DT[B]
       i = try(eval(isub, parent.frame(), parent.frame()), silent=TRUE)
-      if (inherits(i,"try-error")) {
+      if (inherits(i,"try-error") || is.function(i)) {
         # must be "not found" since isub is a mere symbol
         col = try(eval(isub, x), silent=TRUE)  # is it a column name?
-        msg = if (inherits(col,"try-error")) " and it is not a column name either."
-        else paste0(" but it is a column of type ", typeof(col),". If you wish to select rows where that column contains TRUE",
-                    ", or perhaps that column contains row numbers of itself to select, try DT[(col)], DT[DT$col], or DT[col==TRUE] is particularly clear and is optimized.")
-        stop(as.character(isub), " is not found in calling scope", msg,
-             " When the first argument inside DT[...] is a single symbol (e.g. DT[var]), data.table looks for var in calling scope.")
+        msg = if (inherits(col, "try-error")) gettextf(
+          "'%s' is not found in calling scope and it is not a column name either. ",
+          as.character(isub)
+        ) else gettextf(
+          "'%s' is not found in calling scope, but it is a column of type %s. If you wish to select rows where that column contains TRUE, or perhaps that column contains row numbers of itself to select, try DT[(col)], DT[DT$col], or DT[col==TRUE} is particularly clear and is optimized. ",
+          as.character(isub), typeof(col)
+        )
+        stop(msg, "When the first argument inside DT[...] is a single symbol (e.g. DT[var]), data.table looks for var in calling scope.")
       }
     }
     if (restore.N) {
@@ -942,7 +945,7 @@ replace_dot_alias = function(e) {
               if (length(nm) != length(jvnames))
                 warning("j may not evaluate to the same number of columns for each group; if you're sure this warning is in error, please put the branching logic outside of [ for efficiency")
               else if (any(idx <- nm != jvnames))
-                warning("Different branches of j expression produced different auto-named columns: ", brackify(sprintf('%s!=%s', nm[idx], jvnames[idx])), '; using the most "last" names', call. = FALSE)
+                warning("Different branches of j expression produced different auto-named columns: ", brackify(sprintf('%s!=%s', nm[idx], jvnames[idx])), '; using the most "last" names. If this was intentional (e.g., you know only one branch will ever be used in a given query because the branch is controlled by a function argument), please (1) pull this branch out of the call; (2) explicitly provide missing defaults for each branch in all cases; or (3) use the same name for each branch and re-name it in a follow-up call.', call. = FALSE)
             }
             jvnames <<- nm # TODO: handle if() list(a, b) else list(b, a) better
             setattr(q, "names", NULL)  # drops the names from the list so it's faster to eval the j for each group; reinstated at the end on the result.
