@@ -39,6 +39,7 @@ static bool anySpecialStatic(SEXP x) {
   // with PR#4164 started to copy input list columns too much. Hence PR#4655 in v1.13.2 moved that copy here just where it is needed.
   // Currently the marker is negative truelength. These specials are protected by us here and before we release them
   // we restore the true truelength for when R starts to use vector truelength.
+  SEXP attribs, list_el;
   const int n = length(x);
   // use length() not LENGTH() because LENGTH() on NULL is segfault in R<3.5 where we still define USE_RINTERNALS
   // (see data.table.h), and isNewList() is true for NULL
@@ -50,8 +51,13 @@ static bool anySpecialStatic(SEXP x) {
     if (TRUELENGTH(x)<0)
       return true;  // test 2158
     for (int i=0; i<n; ++i) {
-      if (anySpecialStatic(VECTOR_ELT(x,i)))
+      list_el = VECTOR_ELT(x,i);
+      if (anySpecialStatic(list_el))
         return true;
+      for(attribs = ATTRIB(list_el); attribs != R_NilValue; attribs = CDR(attribs)) {
+        if (anySpecialStatic(CAR(attribs)))
+          return true;  // #4936
+      }
     }
   }
   return false;
@@ -72,7 +78,7 @@ SEXP dogroups(SEXP dt, SEXP dtcols, SEXP groups, SEXP grpcols, SEXP jiscols, SEX
   // starts can now be NA (<0): if (INTEGER(starts)[0]<0 || INTEGER(lens)[0]<0) error(_("starts[1]<0 or lens[1]<0"));
   if (!isNull(jiscols) && LENGTH(order) && !LOGICAL(on)[0]) error(_("Internal error: jiscols not NULL but o__ has length")); // # nocov
   if (!isNull(xjiscols) && LENGTH(order) && !LOGICAL(on)[0]) error(_("Internal error: xjiscols not NULL but o__ has length")); // # nocov
-  if(!isEnvironment(env)) error(_("'env' should be an environment"));
+  if(!isEnvironment(env)) error(_("env is not an environment"));
   ngrp = length(starts);  // the number of groups  (nrow(groups) will be larger when by)
   ngrpcols = length(grpcols);
   nrowgroups = length(VECTOR_ELT(groups,0));

@@ -57,8 +57,10 @@ export(setnafill)
 export(.Last.updated)
 export(fcoalesce)
 export(substitute2)
+export(DT)  # mtcars |> DT(i,j,by)  #4872
 
 S3method("[", data.table)
+export("[.data.table")  # so that functional DT() finds it; PR#5176
 S3method("[<-", data.table)
 # S3method("[[", data.table)
 # S3method("[[<-", data.table)
@@ -121,6 +123,7 @@ S3method(split, data.table)
 export(dcast, melt)
 S3method(dcast, data.table)
 S3method(melt, data.table)
+S3method(melt, default)
 
 # exported for historical reasons -- if reshape2 is higher on search path,
 # dcast(DT) will not dispatch since reshape2::dcast is not generic. So users
@@ -185,6 +188,8 @@ S3method(seq, ITime)
 S3method(unique, IDate)
 S3method(unique, ITime)
 S3method('[<-', IDate)
+S3method('min', IDate)
+S3method('max', IDate)
 S3method(edit, data.table)
 
 # generics to support custom column formatters
@@ -195,3 +200,5 @@ S3method(format_col, expression)
 export(format_list_item)
 S3method(format_list_item, default)
 
+export(fdroplevels)
+S3method(droplevels, data.table)

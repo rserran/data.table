@@ -652,8 +652,8 @@ static void StrtoI64(FieldParseContext *ctx)
 // TODO: review ERANGE checks and tests; that range outside [1.7e-308,1.7e+308] coerces to [0.0,Inf]
 /*
 f = "~/data.table/src/freadLookups.h"
-cat("const long double pow10lookup[601] = {\n", file=f, append=FALSE)
-for (i in (-300):(299)) cat("1.0E",i,"L,\n", sep="", file=f, append=TRUE)
+cat("const long double pow10lookup[301] = {\n", file=f, append=FALSE)
+for (i in 0:299) cat("1.0E",i,"L,\n", sep="", file=f, append=TRUE)
 cat("1.0E300L\n};\n", file=f, append=TRUE)
 */
 
@@ -780,12 +780,13 @@ static void parse_double_regular_core(const char **pch, double *target)
     // fail to be encoded by the compiler, even though the values can actually
     // be stored correctly.
     int_fast8_t extra = e < 0 ? e + 300 : e - 300;
-    r *= pow10lookup[extra + 300];
+    r = extra<0 ? r/pow10lookup[-extra] : r*pow10lookup[extra];
     e -= extra;
   }
-  e += 300; // lookup table is arranged from -300 (0) to +300 (600)
 
-  r *= pow10lookup[e];
+  // pow10lookup[301] contains 10^(0:300). Storing negative powers there too
+  // avoids this ternary but is slightly less accurate in some cases, #4461
+  r = e < 0 ? r/pow10lookup[-e] : r*pow10lookup[e];
   *target = (double)(neg? -r : r);
   *pch = ch;
   return;
@@ -1286,9 +1287,10 @@ int freadMain(freadMainArgs _args) {
       STOP(_("freadMain: NAstring <<%s>> has whitespace at the beginning or end"), ch);
     if (strcmp(ch,"T")==0    || strcmp(ch,"F")==0 ||
         strcmp(ch,"TRUE")==0 || strcmp(ch,"FALSE")==0 ||
-        strcmp(ch,"True")==0 || strcmp(ch,"False")==0 ||
-        strcmp(ch,"1")==0    || strcmp(ch,"0")==0)
+        strcmp(ch,"True")==0 || strcmp(ch,"False")==0)
       STOP(_("freadMain: NAstring <<%s>> is recognized as type boolean, this is not permitted."), ch);
+    if ((strcmp(ch,"1")==0 || strcmp(ch,"0")==0) && args.logical01)
+      STOP(_("freadMain: NAstring <<%s>> and logical01=%s, this is not permitted."), ch, args.logical01 ? "TRUE" : "FALSE");
     char *end;
     errno = 0;
     (void)strtod(ch, &end);  // careful not to let "" get to here (see continue above) as strtod considers "" numeric
@@ -1355,7 +1357,7 @@ int freadMain(freadMainArgs _args) {
     const char* fnam = args.filename;
     #ifndef WIN32
       int fd = open(fnam, O_RDONLY);
-      if (fd==-1) STOP(_("file not found: %s"),fnam);
+      if (fd==-1) STOP(_("File not found: %s"),fnam);
       struct stat stat_buf;
       if (fstat(fd, &stat_buf) == -1) {
         close(fd);                                                     // # nocov
@@ -1598,8 +1600,8 @@ int freadMain(freadMainArgs _args) {
     ch = pos;
   } else {
     int nseps;
-    char seps[]=",|;\t ";  // default seps in order of preference. See ?fread.
-                           // seps[] not *seps for writeability (http://stackoverflow.com/a/164258/403310)
+    char seps__[] = ",|;\t ";  // default seps in order of preference; writeable http://stackoverflow.com/a/164258/403310
+    char *seps = dec!=',' ? seps__ : seps__+1;  // prevent guessing sep=',' when dec=',' #4483
     char topSep=127;       // which sep 'wins' top place (see top* below). By default 127 (ascii del) means no sep i.e. single-column input (1 field)
     if (args.sep == '\0') {
       if (verbose) DTPRINT(_("  Detecting sep automatically ...\n"));
