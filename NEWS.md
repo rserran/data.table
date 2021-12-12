@@ -274,6 +274,24 @@
 
 37. `unique.data.table()` gains `cols` to specify a subset of columns to include in the resulting `data.table`, [#5243](https://github.com/Rdatatable/data.table/issues/5243). This saves the memory overhead of subsetting unneeded columns, and provides a cleaner API for a common operation previously needing more convoluted code. Thanks to @MichaelChirico for the suggestion & implementation.
 
+38. `:=` is now optimized by group, [#1414](https://github.com/Rdatatable/data.table/issues/1414). Thanks to Arun Srinivasan for suggesting, and Benjamin Schwendinger for the PR.
+
+39. `.I` is now available in `by` for rowwise operations, [#1732](https://github.com/Rdatatable/data.table/issues/1732). Thanks to Rafael H. M. Pereira for requesting, and Benjamin Schwendinger for the PR.
+
+    ```R
+    DT
+    #       V1    V2
+    #    <int> <int>
+    # 1:     3     5
+    # 2:     4     6
+    
+    DT[, sum(.SD), by=.I]
+    #        I    V1
+    #    <int> <int>
+    # 1:     1     8
+    # 2:     2    10
+    ```
+
 ## BUG FIXES
 
 1. `by=.EACHI` when `i` is keyed but `on=` different columns than `i`'s key could create an invalidly keyed result, [#4603](https://github.com/Rdatatable/data.table/issues/4603) [#4911](https://github.com/Rdatatable/data.table/issues/4911). Thanks to @myoung3 and @adamaltmejd for reporting, and @ColeMiller1 for the PR. An invalid key is where a `data.table` is marked as sorted by the key columns but the data is not sorted by those columns, leading to incorrect results from subsequent queries.
