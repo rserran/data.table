@@ -2,11 +2,9 @@
 
 # data.table [v1.14.99](https://github.com/Rdatatable/data.table/milestone/29)  (in development)
 
-## BREAKING CHANGES
+## BREAKING CHANGE
 
 1. `shift` and `nafill` will now raise error `input must not be matrix or array` when `matrix` or `array` is provided on input, rather than giving useless result, [#5287](https://github.com/Rdatatable/data.table/issues/5287). Thanks to @ethanbsmith for reporting.
-
-2. The `logical01=` arguments in `fread()` and `fwrite()` change their default from `getOption("datatable.logical01", FALSE)` to `getOption("datatable.logical01", TRUE)`. That is, they change from `FALSE` to `TRUE`, but for now you can retain the old behavior by setting option `datatable.logical01`. See the discussion in v1.11.0 (May 2018) release notes where this planned deprecation was first discussed. In the future, the option will be removed.
 
 ## NEW FEATURES
 
@@ -204,7 +202,7 @@
     #  v1.14.4  0.4826  0.5586  0.6586  0.6329  0.7348  1.318   100
     ```
 
-30. `rbind()` and `rbindlist()` now support `fill=TRUE` with `use.names=FALSE` instead of issuing the warning `use.names= cannot be FALSE when fill is TRUE. Setting use.names=TRUE.`, [#5444](https://github.com/Rdatatable/data.table/issues/5444). Thanks to @sindribaldur for testing dev and filing a bug report which was fixed before release.
+30. `rbind()` and `rbindlist()` now support `fill=TRUE` with `use.names=FALSE` instead of issuing the warning `use.names= cannot be FALSE when fill is TRUE. Setting use.names=TRUE.`, [#5444](https://github.com/Rdatatable/data.table/issues/5444). Thanks to @sindribaldur, @dcaseykc, @fox34, @adrian-quintario and @berg-michael for testing dev and filing a bug report which was fixed before release.
 
     ```R
     DT1
@@ -611,5 +609,10 @@
 
 15. Thanks to @ssh352, Václav Tlapák, Cole Miller, András Svraka and Toby Dylan Hocking for reporting and bisecting a significant performance regression in dev. This was fixed before release thanks to a PR by Jan Gorecki, [#5463](https://github.com/Rdatatable/data.table/pull/5463). 
 
+16. `key(x) <- value` is now fully deprecated (from warning to error). Use `setkey()` to set a table's key. We started warning not to use this approach in 2012, with a stronger warning starting in 2019 (1.12.2). This function will be removed in the next release.
+
+17. Argument `logicalAsInt` to `fwrite()` now warns. Use `logical01` instead. We stated the intention to begin removing this option in 2018 (v1.11.0). It will be upgraded to an error in the next release before being removed in the subsequent release.
+
+18. Option `datatable.CJ.names` no longer has any effect, after becoming `TRUE` by default in v1.12.2 (2019). Setting it now gives a warning, which will be dropped in the next release.
 
 # data.table v1.14.10 (Dec 2023) back to v1.10.0 (Dec 2016) has been moved to [NEWS.1.md](https://github.com/Rdatatable/data.table/blob/master/NEWS.1.md)
