@@ -8,6 +8,7 @@ print.data.table = function(x, topn=getOption("datatable.print.topn"),
                print.keys=getOption("datatable.print.keys"),
                trunc.cols=getOption("datatable.print.trunc.cols"),
                quote=FALSE,
+               na.print=NULL,
                timezone=FALSE, ...) {
   # topn  - print the top topn and bottom topn rows with '---' inbetween (5)
   # nrows - under this the whole (small) table is printed, unless topn is provided (100)
@@ -111,12 +112,16 @@ print.data.table = function(x, topn=getOption("datatable.print.topn"),
     toprint = toprint_subset(toprint, cols_to_print)
   }
   if (printdots) {
-    toprint = rbind(head(toprint, topn + isTRUE(class)), "---"="", tail(toprint, topn))
+    if (isFALSE(row.names)) {
+      toprint = rbind(head(toprint, topn + isTRUE(class)), "---", tail(toprint, topn)) # 4083
+    } else {
+      toprint = rbind(head(toprint, topn + isTRUE(class)), "---"="", tail(toprint, topn))
+    }
     rownames(toprint) = format(rownames(toprint), justify="right")
     if (col.names == "none") {
-      cut_colnames(print(toprint, right=TRUE, quote=quote))
+      cut_colnames(print(toprint, right=TRUE, quote=quote, na.print=na.print))
     } else {
-      print(toprint, right=TRUE, quote=quote)
+      print(toprint, right=TRUE, quote=quote, na.print=na.print)
     }
     if (trunc.cols && length(not_printed) > 0L)
       # prints names of variables not shown in the print
@@ -129,9 +134,9 @@ print.data.table = function(x, topn=getOption("datatable.print.topn"),
     #   option to shut this off per request of Oleg Bondar on SO, #1482
     toprint=rbind(toprint, matrix(if (quote) old else colnames(toprint), nrow=1L)) # fixes bug #97
   if (col.names == "none") {
-    cut_colnames(print(toprint, right=TRUE, quote=quote))
+    cut_colnames(print(toprint, right=TRUE, quote=quote, na.print=na.print))
   } else {
-    print(toprint, right=TRUE, quote=quote)
+    print(toprint, right=TRUE, quote=quote, na.print=na.print)
   }
   if (trunc.cols && length(not_printed) > 0L)
     # prints names of variables not shown in the print
@@ -229,11 +234,16 @@ format_list_item.default = function(x, ...) {
 
 # FR #1091 for pretty printing of character
 # TODO: maybe instead of doing "this is...", we could do "this ... test"?
+# Current implementation may have issues when dealing with strings that have combinations of full-width and half-width characters,
+# if this becomes a problem in the future, we could consider string traversal instead.
 char.trunc = function(x, trunc.char = getOption("datatable.prettyprint.char")) {
   trunc.char = max(0L, suppressWarnings(as.integer(trunc.char[1L])), na.rm=TRUE)
   if (!is.character(x) || trunc.char <= 0L) return(x)
-  idx = which(nchar(x) > trunc.char)
-  x[idx] = paste0(substr(x[idx], 1L, as.integer(trunc.char)), "...")
+  nchar_width = nchar(x, 'width') # Check whether string is full-width or half-width, #5096 
+  nchar_chars = nchar(x, 'char')
+  is_full_width = nchar_width > nchar_chars
+  idx = pmin(nchar_width, nchar_chars) > trunc.char
+  x[idx] = paste0(strtrim(x[idx], trunc.char * fifelse(is_full_width[idx], 2L, 1L)), "...")
   x
 }
 
