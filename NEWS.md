@@ -104,6 +104,11 @@
 
     We plan to export similar placeholders for `.` and `J` in roughly one year (e.g. data.table 1.18.0), but excluded them from this release to avoid back-compatibility issues. Specifically, some packages doing `import(plyr)` _and_ `import(data.table)`, and/or with those packages in `Depends`, will error when data.table starts exporting `.` (and similarly for a potential conflict with `rJava::J()`). We discourage using data.table (or any package, really) in Depends; blanket `import()` of package is also generally best avoided. See `vignette("datatable-importing")`.
 
+18. `integer64` columns print well even if {bit64} has not yet been loaded, [#6224](https://github.com/Rdatatable/data.table/issues/6224). Thanks @renkun-ken for the report and @MichaelChirico for the fix.
+
+19. `fwrite()` header names are no longer quoted automatically when `na` argument is given, [#2964](https://github.com/Rdatatable/data.table/issues/2964). Thanks @jangorecki for the report and @joshhwuu for the fix.
+
+20. Removed a warning about the now totally-obsolete option `datatable.CJ.names`, as discussed in previous releases.
 
 ## TRANSLATIONS
 
