@@ -40,6 +40,10 @@
 
 14. `fread` loads `.bgz` files directly, [#5461](https://github.com/Rdatatable/data.table/issues/5461). Thanks to @TMRHarrison for the request with proposed fix, and Benjamin Schwendinger for the PR.
 
+15. `rbindlist(l, use.names=TRUE)` and `rbind` now works correctly on columns with different class attributes for certain classes such as `Date`, `IDate`, `ITime`, `POSIXct` and `AsIs` with other columns of similar classes, e.g., `IDate` and `Date`. The conversion is done automatically and the class attribute of the final column is determined by the first encountered class attribute in the binding list, [#5309](https://github.com/Rdatatable/data.table/issues/5309), [#4934](https://github.com/Rdatatable/data.table/issues/4934), [#5391](https://github.com/Rdatatable/data.table/issues/5391).
+
+`rbindlist(l, ignore.attr=TRUE)` and `rbind` also gains argument `ignore.attr` to manually deactivate the safety-net of binding columns with different column classes, [#3911](https://github.com/Rdatatable/data.table/issues/3911), [#5542](https://github.com/Rdatatable/data.table/issues/5542). Thanks to @dcaseykc, @fox34, @adrian-quintario, @berg-michael, @arunsrinivasan, @statquant, @pkress, @jrausch12, @therosko, @OfekShilon, @iMissile, @tdhock for the request and @ben-schwen for the PR.
+
 ## BUG FIXES
 
 1. `unique()` returns a copy the case when `nrows(x) <= 1` instead of a mutable alias, [#5932](https://github.com/Rdatatable/data.table/pull/5932). This is consistent with existing `unique()` behavior when the input has no duplicates but more than one row. Thanks to @brookslogan for the report and @dshemetov for the fix.
@@ -69,6 +73,8 @@
 13. `rbindlist` and `shift` could lead to a protection stack overflow when applied to a list containing many nested lists exceeding the pointer protection stack size, [#4536](https://github.com/Rdatatable/data.table/issues/4536). Thanks to @ProfFancyPants for reporting, and Benjamin Schwendinger (`rbindlist`) and @MichaelChirico (`shift`) for the fix.
 
 14. `fread(x, colClasses="POSIXct")` now also works for columns containing only NA values, [#6208](https://github.com/Rdatatable/data.table/issues/6208). Thanks to @markus-schaffer for the report, and Benjamin Schwendinger for the fix.
+
+15. `fread()` is more careful about detecting that a file is compressed in bzip2 format, [#6304](https://github.com/Rdatatable/data.table/issues/6304). In particular, we also check the 4th byte is a digit; in rare cases, a legitimate uncompressed CSV file could match 'BZh' as the first 3 bytes. We think an uncompressed CSV file matching 'BZh[1-9]' is all the more rare and unlikely to be encountered in "real" examples. Other formats (zip, gzip) are friendly enough to use non-printable characters in their magic numbers. Thanks @grainnemcguire for the report and @MichaelChirico for the fix.
 
 ## NOTES
 
@@ -116,7 +122,7 @@
 
 20. Removed a warning about the now totally-obsolete option `datatable.CJ.names`, as discussed in previous releases.
 
-21. Refactored some non-API calls to R macros for S4 objects (#6180)[https://github.com/Rdatatable/data.table/issues/6180]. There should be no user-visible change. Thanks to various R users & R core for pushing to have a clearer definition of "API" for R, and thanks @MichaelChirico for implementing here.
+21. Refactored some non-API calls in the package C code, (#6180)[https://github.com/Rdatatable/data.table/issues/6180]. There should be no user-visible change. Thanks to various R users, R core, and especially Luke Tierney for pushing to have a clearer definition of "API" for R and for offering clear documentation and suggested workarounds. Thanks @MichaelChirico and @TysonStanley for implementing changes for this release; more will follow.
 
 22. C code was unified more in how failures to allocate memory (`malloc()`/`calloc()`) are handled, (#1115)[https://github.com/Rdatatable/data.table/issues/1115]. No OOM issues were reported, as these regions of code typically request relatively small blocks of memory, but it is good to handle memory pressure consistently. Thanks @elfring for the report and @MichaelChirico for the clean-up effort and future-proofing linter.
 
