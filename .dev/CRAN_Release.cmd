@@ -18,6 +18,7 @@ Rscript -e "tools::update_pkg_po('.')"
 # 2) Open a PR with the new templates & contact the translators
 #   * zh_CN: @hongyuanjia
 #   * pt_BR: @rffontenelle
+#   * es: @rikivillalba
 ## Translators to submit commits with translations to this PR
 ##   [or perhaps, if we get several languages, each to open
 ##    its own PR and merge to main translation PR]
@@ -53,9 +54,6 @@ grep -RI --exclude-dir=".git" --exclude="*.md" --exclude="*~" --color='auto' -P 
 # Unicode is now ok. This unicode in tests.Rraw is passing on CRAN.
 grep -RI --exclude-dir=".git" --exclude="*.md" --exclude="*~" --color='auto' -n "[\]u[0-9]" ./
 
-# Ensure no calls to omp_set_num_threads() [to avoid affecting other packages and base R]
-# Only comments referring to it should be in openmp-utils.c
-grep omp_set_num_threads ./src/*
 
 # Ensure no calls to omp_set_nested() as i) it's hard to fully honor OMP_THREAD_LIMIT as required by CRAN, and
 #                                        ii) a simpler non-nested approach is always preferable if possible, as has been the case so far
