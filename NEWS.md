@@ -65,6 +65,8 @@ rowwiseDT(
 
 4. `patterns()` in `melt()` combines correctly with user-defined `cols=`, which can be useful to specify a subset of columns to reshape without having to use a regex, for example `patterns("2", cols=c("y1", "y2"))` will only give `y2` even if there are other columns in the input matching `2`, [#6498](https://github.com/Rdatatable/data.table/issues/6498). Thanks to @hongyuanjia for the report, and to @tdhock for the PR.
 
+5. `setcolorder()` gains `skip_absent` to ignore unrecognized columns (i.e. columns included in `neworder` but not present in the data), [#6044,  #6068](https://github.com/Rdatatable/data.table/pull/6044). Default behavior (`skip_absent=FALSE`) remains unchanged, i.e. unrecognized columns result in an error. Thanks to @sluga for the suggestion and @sluga & @Nj221102 for the PRs.
+
 ## BUG FIXES
 
 1. `fwrite()` respects `dec=','` for timestamp columns (`POSIXct` or `nanotime`) with sub-second accuracy, [#6446](https://github.com/Rdatatable/data.table/issues/6446). Thanks @kav2k for pointing out the inconsistency and @MichaelChirico for the PR.
@@ -108,6 +110,10 @@ rowwiseDT(
 11. `tables()` now returns the correct size for data.tables over 2GiB, [#6607](https://github.com/Rdatatable/data.table/issues/6607). Thanks to @vlulla for the report and the PR.
 
 12. Joins on multiple columns, such as `x[y, on=c("x1==y1", "x2==y1")]`, could fail during implicit type coercions if `x1` and `x2` had different but still compatible types, [#6602](https://github.com/Rdatatable/data.table/issues/6602). This was particularly unexpected when columns `x1`, `x2`, and `y1` were all of the same class, e.g. `Date`, but differed in their underlying storage types. Thanks to Benjamin Schwendinger for the report and the fix.
+
+13. `rbindlist(l, use.names=TRUE)` can now handle different encodings for the column names in different entries of `l`, [#5452](https://github.com/Rdatatable/data.table/issues/5452). Thanks to @MEO265 for the report, and Benjamin Schwendinger for the fix.
+
+14. Added a `data.frame` method for `format_list_item()` to fix error printing data.tables with columns containing 1-column data.frames, [#6592](https://github.com/Rdatatable/data.table/issues/6592). Thanks to @r2evans for the bug report and fix.
 
 ## NOTES
 
