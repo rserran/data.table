@@ -78,12 +78,12 @@ const char typeName[NUMTYPE][10] = { "drop", "bool8", "bool8", "bool8", "bool8",
 int8_t     typeSize[NUMTYPE]     = { 0,      1,       1,       1,       1,       1,       1,       4,       8,       8,         8,         8,         4,       8       ,  8      };
 
 // In AIX, NAN and INFINITY don't qualify as constant literals. Refer: PR #3043
-// So we assign them through below init function.
+// So we assign them through below init_const_literals function.
 static double NAND;
 static double INFD;
 
 // NAN and INFINITY constants are float, so cast to double once up front.
-static void init(void)
+static void init_const_literals(void)
 {
   NAND = (double)NAN;
   INFD = (double)INFINITY;
@@ -293,7 +293,7 @@ static inline bool end_of_field(const char *ch)
   // default, and therefore characters in the range 0x80-0xFF are negative.
   // We use eol() because that looks at eol_one_r inside it w.r.t. \r
   // \0 (maybe more than one) before eof are part of field and do not end it; eol() returns false for \0 but the ch==eof will return true for the \0 at eof.
-  return *ch == sep || (*ch <= 13 && (ch == eof || eol(&ch)));
+  return *ch == sep || ((uint8_t)*ch <= 13 && (ch == eof || eol(&ch)));
 }
 
 static inline const char *end_NA_string(const char *start)
@@ -829,7 +829,7 @@ static void parse_double_regular(FieldParseContext *ctx)
  */
 static void parse_double_extended(FieldParseContext *ctx)
 {
-  init();
+  init_const_literals();
 
   double* target = ctx->targets[sizeof(double)];
   const char *ch = *ctx->ch;
@@ -916,7 +916,7 @@ static void parse_double_extended(FieldParseContext *ctx)
  */
 static void parse_double_hexadecimal(FieldParseContext *ctx)
 {
-  init();
+  init_const_literals();
 
   const char *ch = *ctx->ch;
   double *target = ctx->targets[sizeof(double)];
@@ -927,10 +927,13 @@ static void parse_double_hexadecimal(FieldParseContext *ctx)
   if (neg) ch++;
   else if (*ch == '+') ch++;
 
-  const bool subnormal = ch[2] == '0';
+  bool subnormal = false;
 
+  // Important!
+  // Keep in mind that only ch[0] is guaranteed to be mapped.
+  // Rearranging these checks (e.g. to make 'subnormal' const) will lead to segfaults in rare cases.
   if (ch[0] == '0' && (ch[1] == 'x' || ch[1] == 'X') &&
-      (ch[2] == '1' || (subnormal)) && ch[3] == '.') {
+      (ch[2] == '1' || (subnormal = (ch[2] == '0'))) && ch[3] == '.') {
     ch += 4;
     uint64_t acc = 0;
     uint8_t digit;
@@ -2150,9 +2153,8 @@ int freadMain(freadMainArgs _args)
       DTPRINT(_("  Initial alloc = %"PRId64" rows (%"PRId64" + %d%%) using bytes/max(mean-2*sd,min) clamped between [1.1*estn, 2.0*estn]\n"),
               allocnrow, estnrow, (int)(100.0 * allocnrow / estnrow - 100.0));
       DTPRINT("  =====\n"); // # notranslate
-    } else {
-      if (sampleLines > allocnrow) INTERNAL_STOP("sampleLines(%"PRId64") > allocnrow(%"PRId64")", sampleLines, allocnrow); // # nocov
     }
+    if (sampleLines > allocnrow) INTERNAL_STOP("sampleLines(%"PRId64") > allocnrow(%"PRId64")", sampleLines, allocnrow); // # nocov
   }
   if (nrowLimit < allocnrow) {
     if (verbose) DTPRINT(_("  Alloc limited to lower nrows=%"PRId64" passed in.\n"), nrowLimit);
