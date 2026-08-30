@@ -48,6 +48,8 @@
 
 13. `setnafill()` now accepts a logical vector for the `cols` argument, which must be the same length as the number of columns in `x`, [#4113](https://github.com/Rdatatable/data.table/issues/4113). Thanks to @MichaelChirico for the suggestion and @venom1204 for the PR.
 
+14. `nafill()` and `setnafill()` gain a `limit` argument to restrict the maximum number of consecutive `NA` values filled, [#7677](https://github.com/Rdatatable/data.table/issues/7677). Thanks to @jaynewton for the suggestion and @venom1204 and @ben-schwen for the PR.
+
 ### BUG FIXES
 
 1. `fread()` with `skip=0` and `(header=TRUE|FALSE)` no longer skips the first row when it has fewer fields than subsequent rows, [#7463](https://github.com/Rdatatable/data.table/issues/7463). Thanks @emayerhofer for the report and @ben-schwen for the fix.
@@ -111,6 +113,8 @@
 9. `fread()` returns a clearer error message when `dec = NA` is used, [#7737](https://github.com/Rdatatable/data.table/issues/7737). Thanks @mcol for the report and the fix.
 
 10. `fwrite()` returns a clearer error message when `na = data.frame()` is used, [#7866](https://github.com/Rdatatable/data.table/issues/7866). Thanks @mcol for the report and the fix.
+
+11. Handled OpenMP deprecation of `master` construct, [#7882](https://github.com/Rdatatable/data.table/pull/7882). Thanks @TimTaylor for the PR.
 
 ## data.table [v1.18.4](https://github.com/Rdatatable/data.table/milestone/45) (6 May 2026)
 
